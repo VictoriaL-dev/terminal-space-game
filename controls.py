@@ -1,0 +1,47 @@
+SPACE_KEY_CODE = 32
+LEFT_KEY_CODE = 260
+RIGHT_KEY_CODE = 261
+UP_KEY_CODE = 259
+DOWN_KEY_CODE = 258
+
+
+def read_controls(canvas):
+    """Reads input keys from the terminal and detects movement actions.
+
+    Flushes the curses input buffer to process all keys pressed since the last
+    tick. It maps the arrow keys to directional changes. In non-blocking mode
+    (canvas.nodelay(True)), it returns immediately if no keys are available.
+
+    Args:
+        canvas: A curses window object used to poll keyboard input via `getch()`.
+
+    Returns:
+        (int, int, bool): A three-element tuple containing:
+            1) rows_direction (int): Vertical movement delta (-1 for Up, 1 for Down, 0 for None).
+            2) columns_direction (int): Horizontal movement delta (-1 for Left, 1 for Right, 0 for None).
+            3) space_pressed (bool): True if the spacebar was pressed, False otherwise.
+    """
+    rows_direction = columns_direction = 0
+    space_pressed = False
+
+    while True:
+        pressed_key_code = canvas.getch()
+
+        if pressed_key_code == -1:
+            break
+
+        if pressed_key_code == UP_KEY_CODE:
+            rows_direction = -1
+
+        if pressed_key_code == DOWN_KEY_CODE:
+            rows_direction = 1
+
+        if pressed_key_code == RIGHT_KEY_CODE:
+            columns_direction = 1
+
+        if pressed_key_code == LEFT_KEY_CODE:
+            columns_direction = -1
+
+        if pressed_key_code == SPACE_KEY_CODE:
+            space_pressed = True
+    return rows_direction, columns_direction, space_pressed
