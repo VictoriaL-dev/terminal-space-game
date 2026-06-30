@@ -1,14 +1,11 @@
 import time
 import curses
 
-from controls import read_controls
-from curses_tools import get_frame_size
 from animations import get_star_coroutines, fire, animate_spaceship
 
 TIC_TIMEOUT = 0.1
 NUM_STARS = 100
 STAR_SYMBOLS = "+*.:⁕◦"
-SHIP_SPEED = 5
 
 
 def draw(canvas):
@@ -17,6 +14,9 @@ def draw(canvas):
     canvas.clear()
 
     canvas_height, canvas_width = canvas.getmaxyx()
+    center_row = canvas_height // 2
+    center_column = canvas_width // 2
+
     coroutines = get_star_coroutines(
         canvas=canvas,
         canvas_height=canvas_height,
@@ -25,36 +25,22 @@ def draw(canvas):
         num_stars=NUM_STARS
     )
 
-    center_row = canvas_height // 2
-    center_col = canvas_width // 2
-    shot_coroutine = fire(canvas=canvas, start_row=center_row, start_column=center_col)
+    shot_coroutine = fire(canvas=canvas, start_row=center_row, start_column=center_column)
     coroutines.append(shot_coroutine)
 
     with open("frames/ship/ship_1.txt", "r") as f: frame_1 = f.read()
     with open("frames/ship/ship_2.txt", "r") as f: frame_2 = f.read()
     ship_frames = [frame_1, frame_2]
 
-    frame_sizes = [get_frame_size(text=frame) for frame in ship_frames]
-    ship_height = max([frame_size[0] for frame_size in frame_sizes])
-    ship_width = max([frame_size[1] for frame_size in frame_sizes])
-    ship_coords = {
-        "row": center_row - ship_height // 2,
-        "col": center_col - ship_width // 2
-    }
-
-    ship_coroutine = animate_spaceship(canvas=canvas, ship_coords=ship_coords, frames=ship_frames)
+    ship_coroutine = animate_spaceship(
+        canvas=canvas,
+        start_row=center_row,
+        start_column=center_column,
+        frames=ship_frames
+    )
     coroutines.append(ship_coroutine)
 
     while True:
-        rows_direction, columns_direction, space_pressed = read_controls(canvas=canvas)
-
-        if rows_direction != 0 or columns_direction != 0:
-            next_row = ship_coords["row"] + (rows_direction * SHIP_SPEED)
-            next_col = ship_coords["col"] + (columns_direction * SHIP_SPEED)
-
-            ship_coords["row"] = max(0, min(next_row, canvas_height - ship_height - 1))
-            ship_coords["col"] = max(1, min(next_col, canvas_width - ship_width - 1))
-
         for coroutine in coroutines.copy():
             try:
                 coroutine.send(None)

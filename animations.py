@@ -3,10 +3,14 @@ import curses
 import asyncio
 import itertools
 
+from controls import read_controls
 from curses_tools import draw_frame
+from curses_tools import get_frame_size
+
+SHIP_SPEED = 5
 
 
-async def blink(canvas, row, column, symbol):
+async def blink(canvas, row, column, symbol, offset_tics):
     """Animates a single star blinking at a fixed coordinate.
 
     The star starts with a random phase offset to desynchronize its blinking
@@ -18,12 +22,13 @@ async def blink(canvas, row, column, symbol):
         row (int): The vertical coordinate (Y) on the canvas.
         column (int): The horizontal coordinate (X) on the canvas.
         symbol (str): The character representing the star.
+        offset_tics (int): The number of initial game loop ticks to wait before
+            starting the main blinking cycle. Used to desynchronize stars.
 
     Returns:
         None: This coroutine runs infinitely and does not return a value.
     """
-    offset = random.randint(0, 30)
-    for _ in range(offset):
+    for _ in range(offset_tics):
         await asyncio.sleep(0)
 
     while True:
@@ -69,31 +74,32 @@ def get_star_coroutines(canvas, canvas_height, canvas_width, star_symbols, num_s
         row = random.randint(1, canvas_height - 2)
         column = random.randint(1, canvas_width - 2)
         symbol = random.choice(star_symbols)
+        offset = random.randint(0, 30)
 
-        coroutine = blink(canvas=canvas, row=row, column=column, symbol=symbol)
+        coroutine = blink(canvas=canvas, row=row, column=column, symbol=symbol, offset_tics=offset)
         coroutines.append(coroutine)
     return coroutines
 
 
 async def fire(canvas, start_row, start_column, rows_speed=-0.3, columns_speed=0):
-    """Animates a projectile firing and flying across the screen.
+    """Animates a shot firing and flying across the screen.
 
     The animation begins with a two-stage muzzle flash (* then O) at the
-    starting coordinates, accompanied by a system beep. The projectile then
+    starting coordinates, accompanied by a system beep. The shot then
     flies in the specified direction until it hits any boundary of the canvas,
     automatically choosing between horizontal (-) and vertical (|) symbols.
 
     Args:
-        canvas: A curses window object where the projectile will be drawn.
-        start_row (float): The initial vertical coordinate (Y).
-        start_column (float): The initial horizontal coordinate (X).
-        rows_speed (float, optional): Vertical speed per tick. Negative moves up,
+        canvas: A curses window object where the shot will be drawn.
+        start_row (int): The initial vertical coordinate (Y) for the shot.
+        start_column (int): The initial horizontal coordinate (X) for the shot.
+        rows_speed (float): Vertical speed per tick. Negative moves up,
             positive moves down. Defaults to -0.3.
-        columns_speed (float, optional): Horizontal speed per tick. Negative
+        columns_speed (float): Horizontal speed per tick. Negative
             moves left, positive moves right. Defaults to 0.
 
     Returns:
-        None: The coroutine finishes and returns when the projectile moves
+        None: The coroutine finishes and returns when the shot moves
             off-screen or hits a border.
     """
     row, column = start_row, start_column
@@ -123,34 +129,44 @@ async def fire(canvas, start_row, start_column, rows_speed=-0.3, columns_speed=0
         column += columns_speed
 
 
-async def animate_spaceship(canvas, ship_coords, frames):
-    """Animates the player's spaceship by cycling through its animation frames.
+async def animate_spaceship(canvas, start_row, start_column, frames):
+    """Animates the player's spaceship and manages its controls and movement.
 
-    This coroutine runs an infinite loop that sequentially displays the ship's
-    ASCII art frames to create a fluid animation (e.g., flickering engine fire).
-    It dynamically reads the spaceship's position from the shared game state
-    dictionary and memorizes the exact coordinates where the frame was drawn
-    to ensure perfect, trail-free erasing even during fast movements.
+    This coroutine calculates its own dimensions, listens for keyboard
+    inputs via `read_controls` on every single tick, and updates its
+    position within the screen boundaries. It runs by iterating over an
+    infinite sequence of frames.
 
     Args:
         canvas: A curses window object where the spaceship will be drawn.
-        ship_coords (dict): A mutable dictionary holding the current coordinates
-            of the ship under `row` (Y) and `col` (X) keys.
+        start_row (int): The initial vertical coordinate (Y) for the spaceship.
+        start_column (int): The initial horizontal coordinate (X) for the spaceship.
         frames (list of str): A list of multiline strings representing the
             ASCII art animation frames of the spaceship.
 
     Returns:
         None: This coroutine runs infinitely and does not return a value.
     """
-    frames_cycle = itertools.cycle(frames)
+    row, column = start_row, start_column
+    canvas_height, canvas_width = canvas.getmaxyx()
 
-    while True:
-        current_frame = next(frames_cycle)
-        current_row = ship_coords["row"]
-        current_col = ship_coords["col"]
+    ship_sizes = [get_frame_size(text=frame) for frame in frames]
+    ship_height = max([size[0] for size in ship_sizes])
+    ship_width = max([size[1] for size in ship_sizes])
 
-        draw_frame(canvas=canvas, start_row=current_row, start_column=current_col, text=current_frame)
+    duplicated_frames = [frame for frame in frames for _ in range(2)]
+    frames_cycle = itertools.cycle(duplicated_frames)
 
-        for _ in range(2):
-            await asyncio.sleep(0)
-        draw_frame(canvas=canvas, start_row=current_row, start_column=current_col, text=current_frame, negative=True)
+    for current_frame in frames_cycle:
+        rows_direction, columns_direction, space_pressed = read_controls(canvas=canvas)
+
+        if rows_direction != 0 or columns_direction != 0:
+            next_row = row + (rows_direction * SHIP_SPEED)
+            next_column = column + (columns_direction * SHIP_SPEED)
+
+            row = max(0, min(next_row, canvas_height - ship_height - 1))
+            column = max(1, min(next_column, canvas_width - ship_width - 1))
+
+        draw_frame(canvas=canvas, start_row=row, start_column=column, text=current_frame)
+        await asyncio.sleep(0)
+        draw_frame(canvas=canvas, start_row=row, start_column=column, text=current_frame, negative=True)

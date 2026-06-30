@@ -45,7 +45,7 @@ venv\Scripts\activate # on Windows
 source venv/bin/activate # on Linux / macOS
 ```
 
-### 3. Platform-Specific Setup:
+### 3. Platform-specific setup:
 #### Linux / macOS:
 You are good to go! Python's standard library includes the `curses` module by default.
 
