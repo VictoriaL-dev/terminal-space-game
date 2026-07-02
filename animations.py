@@ -7,7 +7,15 @@ from controls import read_controls
 from curses_tools import draw_frame
 from curses_tools import get_frame_size
 
-SHIP_SPEED = 5
+
+async def sleep(tics=1):
+    """Pauses the coroutine execution for a specified number of game ticks.
+
+    Args:
+        tics (int): The number of game ticks to wait. Defaults to 1.
+    """
+    for _ in range(int(tics)):
+        await asyncio.sleep(0)
 
 
 async def blink(canvas, row, column, symbol, offset_tics):
@@ -28,25 +36,20 @@ async def blink(canvas, row, column, symbol, offset_tics):
     Returns:
         None: This coroutine runs infinitely and does not return a value.
     """
-    for _ in range(offset_tics):
-        await asyncio.sleep(0)
+    await sleep(tics=offset_tics)
 
     while True:
         canvas.addstr(row, column, symbol, curses.A_DIM)
-        for _ in range(20):
-            await asyncio.sleep(0)
+        await sleep(tics=20)
 
         canvas.addstr(row, column, symbol)
-        for _ in range(3):
-            await asyncio.sleep(0)
+        await sleep(tics=3)
 
         canvas.addstr(row, column, symbol, curses.A_BOLD)
-        for _ in range(5):
-            await asyncio.sleep(0)
+        await sleep(tics=5)
 
         canvas.addstr(row, column, symbol)
-        for _ in range(3):
-            await asyncio.sleep(0)
+        await sleep(tics=3)
 
 
 def get_star_coroutines(canvas, canvas_height, canvas_width, star_symbols, num_stars):
@@ -81,7 +84,7 @@ def get_star_coroutines(canvas, canvas_height, canvas_width, star_symbols, num_s
     return coroutines
 
 
-async def fire(canvas, start_row, start_column, rows_speed=-0.3, columns_speed=0):
+async def fire(canvas, start_row, start_column, rows_speed, columns_speed=0):
     """Animates a shot firing and flying across the screen.
 
     The animation begins with a two-stage muzzle flash (* then O) at the
@@ -94,7 +97,7 @@ async def fire(canvas, start_row, start_column, rows_speed=-0.3, columns_speed=0
         start_row (int): The initial vertical coordinate (Y) for the shot.
         start_column (int): The initial horizontal coordinate (X) for the shot.
         rows_speed (float): Vertical speed per tick. Negative moves up,
-            positive moves down. Defaults to -0.3.
+            positive moves down.
         columns_speed (float): Horizontal speed per tick. Negative
             moves left, positive moves right. Defaults to 0.
 
@@ -129,7 +132,7 @@ async def fire(canvas, start_row, start_column, rows_speed=-0.3, columns_speed=0
         column += columns_speed
 
 
-async def animate_spaceship(canvas, start_row, start_column, frames):
+async def animate_spaceship(canvas, start_row, start_column, frames, speed):
     """Animates the player's spaceship and manages its controls and movement.
 
     This coroutine calculates its own dimensions, listens for keyboard
@@ -143,6 +146,7 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
         start_column (int): The initial horizontal coordinate (X) for the spaceship.
         frames (list of str): A list of multiline strings representing the
             ASCII art animation frames of the spaceship.
+        speed (float): The movement step size per game tick.
 
     Returns:
         None: This coroutine runs infinitely and does not return a value.
@@ -150,7 +154,7 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
     row, column = start_row, start_column
     canvas_height, canvas_width = canvas.getmaxyx()
 
-    ship_sizes = [get_frame_size(text=frame) for frame in frames]
+    ship_sizes = [get_frame_size(frame=frame) for frame in frames]
     ship_height = max([size[0] for size in ship_sizes])
     ship_width = max([size[1] for size in ship_sizes])
 
@@ -161,12 +165,77 @@ async def animate_spaceship(canvas, start_row, start_column, frames):
         rows_direction, columns_direction, space_pressed = read_controls(canvas=canvas)
 
         if rows_direction != 0 or columns_direction != 0:
-            next_row = row + (rows_direction * SHIP_SPEED)
-            next_column = column + (columns_direction * SHIP_SPEED)
+            next_row = row + (rows_direction * speed)
+            next_column = column + (columns_direction * speed)
 
             row = max(0, min(next_row, canvas_height - ship_height - 1))
             column = max(1, min(next_column, canvas_width - ship_width - 1))
 
-        draw_frame(canvas=canvas, start_row=row, start_column=column, text=current_frame)
+        draw_frame(canvas=canvas, start_row=row, start_column=column, frame=current_frame)
         await asyncio.sleep(0)
-        draw_frame(canvas=canvas, start_row=row, start_column=column, text=current_frame, negative=True)
+        draw_frame(canvas=canvas, start_row=row, start_column=column, frame=current_frame, negative=True)
+
+
+async def fly_garbage(canvas, column, frame, speed):
+    """Animates a single piece of garbage falling from the top to the bottom.
+
+    The function draws a garbage frame, pauses for one game tick, and then
+    erases it before updating its vertical position. The horizontal position
+    remains constant throughout the lifetime of the garbage animation.
+
+    Args:
+        canvas: A curses window object where the garbage will be rendered.
+        column (int): The fixed horizontal coordinate (X) where the garbage falls.
+        frame (str): A multiline string containing the ASCII art for the garbage.
+        speed (float): The vertical distance (rows) the garbage travels per tick.
+
+    Returns:
+        None: This coroutine terminates when the garbage goes off-screen.
+    """
+    rows_number, columns_number = canvas.getmaxyx()
+
+    column = max(column, 0)
+    column = min(column, columns_number - 1)
+
+    row = 0
+
+    while row < rows_number:
+        draw_frame(canvas=canvas, start_row=row, start_column=column, frame=frame)
+        await asyncio.sleep(0)
+        draw_frame(canvas=canvas, start_row=row, start_column=column, frame=frame, negative=True)
+        row += speed
+
+
+async def fill_orbit_with_garbage(canvas, frames, coroutines, speed, delay_range):
+    """Continuously spawns garbage at the top of the canvas at random intervals.
+
+    This background loop measures the screen boundaries, selects a random horizontal
+    coordinate, chooses a random frame from the available list, and appends a new
+    garbage animation coroutine directly into the main coroutine list.
+
+    Args:
+        canvas: A curses window object where garbage tasks are deployed.
+        frames (list of str): A list containing various ASCII art frames
+            used to represent different garbage items.
+        coroutines (list): The global list of active game coroutines.
+        speed (float): The vertical falling velocity of spawned garbage items.
+        delay_range (tuple of int): A tuple (min, max) representing the
+            range of game ticks to wait before spawning the next item.
+
+    Returns:
+        None: This coroutine runs infinitely.
+    """
+    while True:
+        rows_number, columns_number = canvas.getmaxyx()
+
+        random_frame = random.choice(frames)
+        obstacle_height, obstacle_width = get_frame_size(frame=random_frame)
+
+        max_column = columns_number - obstacle_width - 1
+        random_column = random.randint(1, max(1, max_column))
+
+        garbage_coroutine = fly_garbage(canvas=canvas, column=random_column, frame=random_frame, speed=speed)
+        coroutines.append(garbage_coroutine)
+
+        delay = random.randint(*delay_range)
+        await sleep(tics=delay)

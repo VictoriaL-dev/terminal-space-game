@@ -1,11 +1,16 @@
 import time
 import curses
 
-from animations import get_star_coroutines, fire, animate_spaceship
+from curses_tools import load_frames
+from animations import get_star_coroutines, fire, animate_spaceship, fill_orbit_with_garbage
 
 TIC_TIMEOUT = 0.1
 NUM_STARS = 100
 STAR_SYMBOLS = "+*.:⁕◦"
+
+SHIP_SPEED = 5
+VERTICAL_SHOT_SPEED = -0.3
+OBSTACLE_SPEED = 0.5
 
 
 def draw(canvas):
@@ -17,6 +22,9 @@ def draw(canvas):
     center_row = canvas_height // 2
     center_column = canvas_width // 2
 
+    ship_frames = load_frames(path_pattern="frames/ship/*.txt")
+    obstacle_frames = load_frames(path_pattern="frames/obstacles/*.txt")
+
     coroutines = get_star_coroutines(
         canvas=canvas,
         canvas_height=canvas_height,
@@ -25,20 +33,31 @@ def draw(canvas):
         num_stars=NUM_STARS
     )
 
-    shot_coroutine = fire(canvas=canvas, start_row=center_row, start_column=center_column)
+    shot_coroutine = fire(
+        canvas=canvas,
+        start_row=center_row,
+        start_column=center_column,
+        rows_speed=VERTICAL_SHOT_SPEED
+    )
     coroutines.append(shot_coroutine)
-
-    with open("frames/ship/ship_1.txt", "r") as f: frame_1 = f.read()
-    with open("frames/ship/ship_2.txt", "r") as f: frame_2 = f.read()
-    ship_frames = [frame_1, frame_2]
 
     ship_coroutine = animate_spaceship(
         canvas=canvas,
         start_row=center_row,
         start_column=center_column,
-        frames=ship_frames
+        frames=ship_frames,
+        speed=SHIP_SPEED
     )
     coroutines.append(ship_coroutine)
+
+    obstacle_spawner_coroutine = fill_orbit_with_garbage(
+        canvas=canvas,
+        frames=obstacle_frames,
+        coroutines=coroutines,
+        speed=OBSTACLE_SPEED,
+        delay_range=(8, 20)
+    )
+    coroutines.append(obstacle_spawner_coroutine)
 
     while True:
         for coroutine in coroutines.copy():
@@ -53,4 +72,7 @@ def draw(canvas):
 
 
 if __name__ == "__main__":
-    curses.wrapper(draw)
+    try:
+        curses.wrapper(draw)
+    except KeyboardInterrupt:
+        pass
