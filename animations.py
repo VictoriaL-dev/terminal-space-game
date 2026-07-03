@@ -3,6 +3,7 @@ import curses
 import asyncio
 import itertools
 
+from obstacles import Obstacle
 from physics import update_speed
 from controls import read_controls
 from curses_tools import draw_frame
@@ -85,13 +86,14 @@ def get_star_coroutines(canvas, canvas_height, canvas_width, star_symbols, num_s
     return coroutines
 
 
-async def fire(canvas, start_row, start_column, rows_speed, columns_speed=0):
-    """Animates a shot firing and flying across the screen.
+async def fire(canvas, start_row, start_column, rows_speed, obstacles,
+               obstacles_in_last_collisions, columns_speed=0):
+    """Animates a shot firing, flying across the screen, and hitting obstacles.
 
     The animation begins with a two-stage muzzle flash (* then O) at the
     starting coordinates, accompanied by a system beep. The shot then
-    flies in the specified direction until it hits any boundary of the canvas,
-    automatically choosing between horizontal (-) and vertical (|) symbols.
+    flies in the specified direction until it hits any boundary of the canvas
+    or collides with an obstacle tracked in the global obstacles list.
 
     Args:
         canvas: A curses window object where the shot will be drawn.
@@ -99,12 +101,14 @@ async def fire(canvas, start_row, start_column, rows_speed, columns_speed=0):
         start_column (int): The initial horizontal coordinate (X) for the shot.
         rows_speed (float): Vertical speed per tick. Negative moves up,
             positive moves down.
+        obstacles (list of Obstacle): Global list tracking active target obstacles.
+        obstacles_in_last_collisions (list of Obstacle): Global list tracking obstacle collisions.
         columns_speed (float): Horizontal speed per tick. Negative
             moves left, positive moves right. Defaults to 0.
 
     Returns:
         None: The coroutine finishes and returns when the shot moves
-            off-screen or hits a border.
+            off-screen, hits a border, or strikes an obstacle.
     """
     row, column = start_row, start_column
 
@@ -126,6 +130,11 @@ async def fire(canvas, start_row, start_column, rows_speed, columns_speed=0):
     curses.beep()
 
     while 0 < row < max_row and 0 < column < max_column:
+        for obstacle in obstacles:
+            if obstacle.has_collision(round(row), round(column), obj_size_rows=1, obj_size_columns=1):
+                obstacles_in_last_collisions.append(obstacle)
+                return
+
         canvas.addstr(round(row), round(column), symbol)
         await asyncio.sleep(0)
         canvas.addstr(round(row), round(column), " ")
@@ -134,7 +143,7 @@ async def fire(canvas, start_row, start_column, rows_speed, columns_speed=0):
 
 
 async def animate_spaceship(canvas, start_row, start_column, frames, ship_speed,
-                            coroutines, shot_speed):
+                            coroutines, shot_speed, obstacles, obstacles_in_last_collisions):
     """Animates the player's spaceship and manages its controls and movement.
 
     This coroutine calculates its own dimensions, listens for keyboard
@@ -151,6 +160,8 @@ async def animate_spaceship(canvas, start_row, start_column, frames, ship_speed,
         ship_speed (float): The movement step size per game tick.
         coroutines (list): The global list of active game coroutines.
         shot_speed (float): The shot speed per game tick.
+        obstacles (list of Obstacle): Global list tracking active target obstacles.
+        obstacles_in_last_collisions (list of Obstacle): Global list tracking obstacle collisions.
 
     Returns:
         None: This coroutine runs infinitely and does not return a value.
@@ -166,19 +177,22 @@ async def animate_spaceship(canvas, start_row, start_column, frames, ship_speed,
     frames_cycle = itertools.cycle(duplicated_frames)
 
     row_speed, column_speed = 0.0, 0.0
-    shot_cooldown = 0
 
     for current_frame in frames_cycle:
         rows_direction, columns_direction, space_pressed = read_controls(canvas=canvas)
 
-        if shot_cooldown > 0:
-            shot_cooldown -= 1
-
-        if space_pressed and shot_cooldown == 0:
+        if space_pressed:
             shot_row = row
             shot_column = column + (ship_width // 2)
 
-            shot_coroutine = fire(canvas=canvas, start_row=shot_row, start_column=shot_column, rows_speed=shot_speed)
+            shot_coroutine = fire(
+                canvas=canvas,
+                start_row=shot_row,
+                start_column=shot_column,
+                rows_speed=shot_speed,
+                obstacles=obstacles,
+                obstacles_in_last_collisions=obstacles_in_last_collisions
+            )
             coroutines.append(shot_coroutine)
 
         row_speed, column_speed = update_speed(
@@ -205,7 +219,8 @@ async def animate_spaceship(canvas, start_row, start_column, frames, ship_speed,
         draw_frame(canvas=canvas, start_row=row, start_column=column, frame=current_frame, negative=True)
 
 
-async def fly_garbage(canvas, column, frame, speed):
+async def fly_garbage(canvas, column, frame, speed, obstacles,
+                      obstacles_in_last_collisions):
     """Animates a single piece of garbage falling from the top to the bottom.
 
     The function draws a garbage frame, pauses for one game tick, and then
@@ -217,25 +232,42 @@ async def fly_garbage(canvas, column, frame, speed):
         column (int): The fixed horizontal coordinate (X) where the garbage falls.
         frame (str): A multiline string containing the ASCII art for the garbage.
         speed (float): The vertical distance (rows) the garbage travels per tick.
+        obstacles (list of Obstacle): Global list tracking active target obstacles.
+        obstacles_in_last_collisions (list of Obstacle): Global list tracking obstacle collisions.
 
     Returns:
         None: This coroutine terminates when the garbage goes off-screen.
     """
     rows_number, columns_number = canvas.getmaxyx()
+    obstacle_height, obstacle_width = get_frame_size(frame)
 
     column = max(column, 0)
     column = min(column, columns_number - 1)
-
     row = 0
 
-    while row < rows_number:
-        draw_frame(canvas=canvas, start_row=row, start_column=column, frame=frame)
-        await asyncio.sleep(0)
-        draw_frame(canvas=canvas, start_row=row, start_column=column, frame=frame, negative=True)
-        row += speed
+    obstacle = Obstacle(row, column, obstacle_height, obstacle_width)
+    obstacles.append(obstacle)
+
+    try:
+        while row < rows_number:
+            if obstacle in obstacles_in_last_collisions:
+                obstacles_in_last_collisions.remove(obstacle)
+                return
+
+            draw_frame(canvas=canvas, start_row=row, start_column=column, frame=frame)
+            await asyncio.sleep(0)
+            draw_frame(canvas=canvas, start_row=row, start_column=column, frame=frame, negative=True)
+
+            row += speed
+            obstacle.row = row
+            obstacle.column = column
+    finally:
+        if obstacle in obstacles:
+            obstacles.remove(obstacle)
 
 
-async def fill_orbit_with_garbage(canvas, frames, coroutines, speed, delay_range):
+async def fill_orbit_with_garbage(canvas, frames, coroutines, speed, delay_range,
+                                  obstacles, obstacles_in_last_collisions):
     """Continuously spawns garbage at the top of the canvas at random intervals.
 
     This background loop measures the screen boundaries, selects a random horizontal
@@ -250,6 +282,8 @@ async def fill_orbit_with_garbage(canvas, frames, coroutines, speed, delay_range
         speed (float): The vertical falling velocity of spawned garbage items.
         delay_range (tuple of int): A tuple (min, max) representing the
             range of game ticks to wait before spawning the next item.
+        obstacles (list of Obstacle): Global list tracking active target obstacles.
+        obstacles_in_last_collisions (list of Obstacle): Global list tracking obstacle collisions.
 
     Returns:
         None: This coroutine runs infinitely.
@@ -263,7 +297,14 @@ async def fill_orbit_with_garbage(canvas, frames, coroutines, speed, delay_range
         max_column = columns_number - obstacle_width - 1
         random_column = random.randint(1, max(1, max_column))
 
-        garbage_coroutine = fly_garbage(canvas=canvas, column=random_column, frame=random_frame, speed=speed)
+        garbage_coroutine = fly_garbage(
+            canvas=canvas,
+            column=random_column,
+            frame=random_frame,
+            speed=speed,
+            obstacles=obstacles,
+            obstacles_in_last_collisions=obstacles_in_last_collisions
+        )
         coroutines.append(garbage_coroutine)
 
         delay = random.randint(*delay_range)

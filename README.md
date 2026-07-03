@@ -23,12 +23,13 @@ curses text interface.
 ```text
 .
 ├── frames/              # Directory holding raw ASCII art animations
-│   ├── obstacles/       # ASCII art of obstacles
+│   ├── obstacles/       # ASCII arts of obstacles
 │   └── ship/            # Spaceship engine flame animation frames   
 ├── curses_tools.py      # Core text-processing tools (drawing frames, boundaries)
 ├── controls.py          # Non-blocking user keyboard inputs configuration
 ├── animations.py        # Asynchronous game entities behaviors (stars, ship, fire)
-├── physics.py           # Handles spaceship inertia, deceleration, and smooth motion physics
+├── obstacles.py         # Core physics engine managing hitbox rendering and 2D collision detection
+├── physics.py           # Spaceship inertia, deceleration, and smooth motion physics
 └── main.py              # Main game setup, state management, and orchestration loop
 ```
 
@@ -75,4 +76,5 @@ python3 main.py
 
 ## 🎮 Controls
 - `▲` / `▼` / `◄` / `►` (Arrow Keys): Fly your spaceship smoothly across the night sky.
+- `Spacebar`: Discharge the plasma cannon.
 - `Ctrl + C`: Gracefully quit the game loop and return terminal behavior back to normal.
