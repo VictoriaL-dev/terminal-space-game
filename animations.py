@@ -3,6 +3,7 @@ import curses
 import asyncio
 import itertools
 
+from physics import update_speed
 from controls import read_controls
 from curses_tools import draw_frame
 from curses_tools import get_frame_size
@@ -132,7 +133,8 @@ async def fire(canvas, start_row, start_column, rows_speed, columns_speed=0):
         column += columns_speed
 
 
-async def animate_spaceship(canvas, start_row, start_column, frames, speed):
+async def animate_spaceship(canvas, start_row, start_column, frames, ship_speed,
+                            coroutines, shot_speed):
     """Animates the player's spaceship and manages its controls and movement.
 
     This coroutine calculates its own dimensions, listens for keyboard
@@ -146,7 +148,9 @@ async def animate_spaceship(canvas, start_row, start_column, frames, speed):
         start_column (int): The initial horizontal coordinate (X) for the spaceship.
         frames (list of str): A list of multiline strings representing the
             ASCII art animation frames of the spaceship.
-        speed (float): The movement step size per game tick.
+        ship_speed (float): The movement step size per game tick.
+        coroutines (list): The global list of active game coroutines.
+        shot_speed (float): The shot speed per game tick.
 
     Returns:
         None: This coroutine runs infinitely and does not return a value.
@@ -161,15 +165,40 @@ async def animate_spaceship(canvas, start_row, start_column, frames, speed):
     duplicated_frames = [frame for frame in frames for _ in range(2)]
     frames_cycle = itertools.cycle(duplicated_frames)
 
+    row_speed, column_speed = 0.0, 0.0
+    shot_cooldown = 0
+
     for current_frame in frames_cycle:
         rows_direction, columns_direction, space_pressed = read_controls(canvas=canvas)
 
-        if rows_direction != 0 or columns_direction != 0:
-            next_row = row + (rows_direction * speed)
-            next_column = column + (columns_direction * speed)
+        if shot_cooldown > 0:
+            shot_cooldown -= 1
 
-            row = max(0, min(next_row, canvas_height - ship_height - 1))
-            column = max(1, min(next_column, canvas_width - ship_width - 1))
+        if space_pressed and shot_cooldown == 0:
+            shot_row = row
+            shot_column = column + (ship_width // 2)
+
+            shot_coroutine = fire(canvas=canvas, start_row=shot_row, start_column=shot_column, rows_speed=shot_speed)
+            coroutines.append(shot_coroutine)
+
+        row_speed, column_speed = update_speed(
+            row_speed=row_speed,
+            column_speed=column_speed,
+            rows_direction=rows_direction,
+            columns_direction=columns_direction,
+            row_speed_limit=ship_speed,
+            column_speed_limit=ship_speed,
+            fading=0.8
+        )
+
+        next_row = row + row_speed
+        next_column = column + column_speed
+
+        row = max(0, min(next_row, canvas_height - ship_height - 1))
+        column = max(1, min(next_column, canvas_width - ship_width - 1))
+
+        if row in (0, canvas_height - ship_height - 1): row_speed = 0.0
+        if column in (1, canvas_width - ship_width - 1): column_speed = 0.0
 
         draw_frame(canvas=canvas, start_row=row, start_column=column, frame=current_frame)
         await asyncio.sleep(0)

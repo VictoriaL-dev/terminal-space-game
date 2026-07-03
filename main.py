@@ -2,14 +2,14 @@ import time
 import curses
 
 from curses_tools import load_frames
-from animations import get_star_coroutines, fire, animate_spaceship, fill_orbit_with_garbage
+from animations import get_star_coroutines, animate_spaceship, fill_orbit_with_garbage
 
 TIC_TIMEOUT = 0.1
 NUM_STARS = 100
 STAR_SYMBOLS = "+*.:⁕◦"
 
 SHIP_SPEED = 5
-VERTICAL_SHOT_SPEED = -0.3
+VERTICAL_SHOT_SPEED = -1.5
 OBSTACLE_SPEED = 0.5
 
 
@@ -33,20 +33,14 @@ def draw(canvas):
         num_stars=NUM_STARS
     )
 
-    shot_coroutine = fire(
-        canvas=canvas,
-        start_row=center_row,
-        start_column=center_column,
-        rows_speed=VERTICAL_SHOT_SPEED
-    )
-    coroutines.append(shot_coroutine)
-
     ship_coroutine = animate_spaceship(
         canvas=canvas,
         start_row=center_row,
         start_column=center_column,
         frames=ship_frames,
-        speed=SHIP_SPEED
+        ship_speed=SHIP_SPEED,
+        coroutines=coroutines,
+        shot_speed=VERTICAL_SHOT_SPEED
     )
     coroutines.append(ship_coroutine)
 
