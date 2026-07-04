@@ -7,7 +7,7 @@ curses text interface.
 ## 📌 Table of Contents
 - [⚙️ Tech Stack](#-tech-stack)
 - [📁 Project Structure](#-project-structure)
-- [🛠️ Installation & Setup](#-installation--setup)
+- [🛠️ Installation and Setup](#-installation-and-setup)
 - [🚀 Quick Start Guide](#-quick-start-guide)
 - [🎮 Controls](#-controls)
 
@@ -26,15 +26,16 @@ curses text interface.
 │   ├── obstacles/       # ASCII arts of obstacles
 │   └── ship/            # Spaceship engine flame animation frames   
 ├── curses_tools.py      # Core text-processing tools (drawing frames, boundaries)
+├── game_config.py       # Main configuration and game state management file
 ├── controls.py          # Non-blocking user keyboard inputs configuration
 ├── animations.py        # Asynchronous game entities behaviors (stars, ship, fire)
 ├── obstacles.py         # Core physics engine managing hitbox rendering and 2D collision detection
 ├── physics.py           # Spaceship inertia, deceleration, and smooth motion physics
-└── main.py              # Main game setup, state management, and orchestration loop
+└── main.py              # Main game setup and orchestration loop
 ```
 
 
-## 🛠️ Installation & Setup
+## 🛠️ Installation and Setup
 ### 1. Clone the repository:
 ```bash
 git clone https://github.com/VictoriaL-dev/terminal-space-game.git

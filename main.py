@@ -1,17 +1,10 @@
 import time
 import curses
 
+import game_config
 from curses_tools import load_frames
 from curses_tools import get_frame_size
 from animations import get_star_coroutines, animate_spaceship, fill_orbit_with_garbage
-
-TIC_TIMEOUT = 0.1
-NUM_STARS = 100
-STAR_SYMBOLS = "+*.:⁕◦"
-
-SHIP_SPEED = 6.0
-VERTICAL_SHOT_SPEED = -1.5
-OBSTACLE_SPEED = 0.2
 
 
 def draw(canvas):
@@ -27,51 +20,37 @@ def draw(canvas):
     center_row = (canvas_height // 2) - (ship_height // 2)
     center_column = (canvas_width // 2) - (ship_width // 2)
 
-    obstacles = []
-    obstacles_in_last_collisions = []
-
-    coroutines = get_star_coroutines(
+    game_config.coroutines = get_star_coroutines(
         canvas=canvas,
         canvas_height=canvas_height,
-        canvas_width=canvas_width,
-        star_symbols=STAR_SYMBOLS,
-        num_stars=NUM_STARS
+        canvas_width=canvas_width
     )
 
     ship_coroutine = animate_spaceship(
         canvas=canvas,
         start_row=center_row,
         start_column=center_column,
-        frames=ship_frames,
-        ship_speed=SHIP_SPEED,
-        coroutines=coroutines,
-        shot_speed=VERTICAL_SHOT_SPEED,
-        obstacles=obstacles,
-        obstacles_in_last_collisions=obstacles_in_last_collisions
+        frames=ship_frames
     )
-    coroutines.append(ship_coroutine)
+    game_config.coroutines.append(ship_coroutine)
 
     obstacle_spawner_coroutine = fill_orbit_with_garbage(
         canvas=canvas,
         frames=obstacle_frames,
-        coroutines=coroutines,
-        speed=OBSTACLE_SPEED,
-        delay_range=(8, 20),
-        obstacles=obstacles,
-        obstacles_in_last_collisions=obstacles_in_last_collisions
+        delay_range=game_config.OBSTACLE_DELAY_RANGE
     )
-    coroutines.append(obstacle_spawner_coroutine)
+    game_config.coroutines.append(obstacle_spawner_coroutine)
 
     while True:
-        for coroutine in coroutines.copy():
+        for coroutine in game_config.coroutines.copy():
             try:
                 coroutine.send(None)
             except StopIteration:
-                coroutines.remove(coroutine)
+                game_config.coroutines.remove(coroutine)
 
         canvas.border()
         canvas.refresh()
-        time.sleep(TIC_TIMEOUT)
+        time.sleep(game_config.TIC_TIMEOUT)
 
 
 if __name__ == "__main__":
