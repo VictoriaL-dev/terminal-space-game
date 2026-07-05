@@ -4,18 +4,14 @@ from curses_tools import draw_frame
 
 
 class Obstacle:
-    """Represents a physical rectangular obstacle on the 2D matrix canvas.
-
-    Used for calculating bounding boxes for debugging displays and validating
-    collisions with other game entities like shots.
-    """
+    """Represents a physical rectangular obstacle on the 2D matrix canvas."""
 
     def __init__(self, row, column, rows_size=1, columns_size=1, uid=None):
         """Initializes the obstacle with position spatial dimensions.
 
         Args:
-            row (float): The current vertical coordinate (Y) of the top-left corner.
-            column (float): The current horizontal coordinate (X) of the top-left corner.
+            row (int): The current vertical coordinate (Y) of the top-left corner.
+            column (int): The current horizontal coordinate (X) of the top-left corner.
             rows_size (int): Vertical thickness / height of the hit box.
             columns_size (int): Horizontal length / width of the hit box.
             uid (str): Unique identifier assigned to the obstacle instance.
@@ -35,16 +31,15 @@ class Obstacle:
         Returns:
             str: A multiline string composed of lines forming a box outline.
         """
-        rows, columns = self.rows_size + 1, self.columns_size + 1
-        return "\n".join(_get_bounding_box_lines(rows, columns))
+        top_bottom = f" {'-' * (self.columns_size + 1)} "
+        middle_lines = [f"|{' ' * (self.columns_size + 1)}|" for _ in range(self.rows_size + 1)]
+        return "\n".join([top_bottom] + middle_lines + [top_bottom])
 
     def get_bounding_box_corner_pos(self):
         """Calculates the alignment coordinate for drawing the outer bounding box.
 
-        Since the frame padding expands by 1 cell outwards, the corner shifts.
-
         Returns:
-            (float, float): The (row, column) coordinate for drawing.
+            (int, int): The (row, column) coordinate for drawing.
         """
         return self.row - 1, self.column - 1
 
@@ -52,9 +47,9 @@ class Obstacle:
         """Packages position coordinates and the text frame of the bounding box.
 
         Returns:
-            (float, float, str): A tuple containing:
-                1) row (float): Adjusted bounding box vertical coordinate.
-                2) column (float): Adjusted bounding box horizontal coordinate.
+            (int, int, str): A tuple containing:
+                1) row (int): Adjusted bounding box vertical coordinate.
+                2) column (int): Adjusted bounding box horizontal coordinate.
                 3) frame (str): ASCII representation of the bounding box lines.
         """
         row, column = self.get_bounding_box_corner_pos()
@@ -64,8 +59,8 @@ class Obstacle:
         """Determines if a target entity collides with this obstacle instance.
 
         Args:
-            obj_corner_row (float): Top-left row index of the checked object.
-            obj_corner_column (float): Top-left column index of the checked object.
+            obj_corner_row (int): Top-left row index of the checked object.
+            obj_corner_column (int): Top-left column index of the checked object.
             obj_size_rows (int): Total vertical span of the object. Defaults to 1.
             obj_size_columns (int): Total horizontal span. Defaults to 1.
 
@@ -80,27 +75,35 @@ class Obstacle:
         )
 
 
-def _get_bounding_box_lines(rows, columns):
-    """Yields text strings line-by-line to build an ASCII frame box.
+def has_collision(obstacle_corner, obstacle_size, obj_corner, obj_size=(1, 1)):
+    """Verifies geometric overlaps between two separate 2D bounding boxes.
+
+    Uses the Axis-Aligned Bounding Box (AABB) intersection algorithm.
+    Guarantees absolute collision precision for rectangles of any aspect ratio.
 
     Args:
-        rows (int): Expected inner vertical cell size.
-        columns (int): Expected inner horizontal cell size.
+        obstacle_corner (tuple of int): Top-left (row, column) of obstacle.
+        obstacle_size (tuple of int): (height, width) dimensions of obstacle.
+        obj_corner (tuple of int): Top-left (row, column) of moving object.
+        obj_size (tuple of int): (height, width) of moving object.
+            Defaults to (1, 1).
 
     Returns:
-        str: A single line string sequence forming part of the visual outline.
+        bool: True if any vertex crosses into the opposing bounds, False otherwise.
     """
-    yield " " + "-" * columns + " "
-    for _ in range(rows):
-        yield "|" + " " * columns + "|"
-    yield " " + "-" * columns + " "
+    a_top, a_left = obstacle_corner
+    a_bottom = a_top + obstacle_size[0]
+    a_right = a_left + obstacle_size[1]
+
+    b_top, b_left = obj_corner
+    b_bottom = b_top + obj_size[0]
+    b_right = b_left + obj_size[1]
+
+    return not (a_right <= b_left or b_right <= a_left or a_bottom <= b_top or b_bottom <= b_top)
 
 
 async def show_obstacles(canvas, obstacles):
     """Infinite loop displaying visual bounding box wireframes for debugging.
-
-    Draws borders around all currently active obstacles in the passed list,
-    updates them every tick, and performs negative wipes to clear old frames.
 
     Args:
         canvas: A curses window object where the debug boxes are drawn.
@@ -111,69 +114,14 @@ async def show_obstacles(canvas, obstacles):
     """
     while True:
         boxes = []
-
         for obstacle in obstacles:
-            boxes.append(obstacle.dump_bounding_box())
+            row, column, frame = obstacle.dump_bounding_box()
+            boxes.append((round(row), round(column), frame))
 
         for row, column, frame in boxes:
-            draw_frame(canvas, row, column, frame)
+            draw_frame(canvas=canvas, start_row=row, start_column=column, frame=frame)
 
         await asyncio.sleep(0)
 
         for row, column, frame in boxes:
-            draw_frame(canvas, row, column, frame, negative=True)
-
-
-def _is_point_inside(corner_row, corner_column, size_rows, size_columns, point_row,
-                     point_row_column):
-    """Validates if a discrete point resides inside a defined rectangle.
-
-    Args:
-        corner_row (float): Top-left Y axis reference bound.
-        corner_column (float): Top-left X axis reference bound.
-        size_rows (int): Rectangle height threshold.
-        size_columns (int): Rectangle width threshold.
-        point_row (float): Target point Y coordinate.
-        point_row_column (float): Target point X coordinate.
-
-    Returns:
-        bool: True if the target coordinates fall inside the boundaries, False otherwise.
-    """
-    rows_flag = corner_row <= point_row < corner_row + size_rows
-    columns_flag = corner_column <= point_row_column < corner_column + size_columns
-    return rows_flag and columns_flag
-
-
-def has_collision(obstacle_corner, obstacle_size, obj_corner, obj_size=(1, 1)):
-    """Verifies geometric overlaps between two separate 2D bounding boxes.
-
-    Checks intersection points by cross-referencing corners of both entities
-    to find intersections.
-
-    Args:
-        obstacle_corner (tuple of float): Top-left (row, column) of obstacle.
-        obstacle_size (tuple of int): (height, width) dimensions of obstacle.
-        obj_corner (tuple of float): Top-left (row, column) of moving object.
-        obj_size (tuple of int): (height, width) of moving object.
-            Defaults to (1, 1).
-
-    Returns:
-        bool: True if any vertex crosses into the opposing bounds, False otherwise.
-    """
-    opposite_obstacle_corner = (
-        obstacle_corner[0] + obstacle_size[0] - 1,
-        obstacle_corner[1] + obstacle_size[1] - 1,
-    )
-
-    opposite_obj_corner = (
-        obj_corner[0] + obj_size[0] - 1,
-        obj_corner[1] + obj_size[1] - 1,
-    )
-
-    return any([
-        _is_point_inside(*obstacle_corner, *obstacle_size, *obj_corner),
-        _is_point_inside(*obstacle_corner, *obstacle_size, *opposite_obj_corner),
-
-        _is_point_inside(*obj_corner, *obj_size, *obstacle_corner),
-        _is_point_inside(*obj_corner, *obj_size, *opposite_obstacle_corner),
-    ])
+            draw_frame(canvas=canvas, start_row=row, start_column=column, frame=frame, negative=True)

@@ -4,10 +4,6 @@ import game_config
 def read_controls(canvas):
     """Reads input keys from the terminal and detects movement actions.
 
-    Flushes the curses input buffer to process all keys pressed since the last
-    tick. It maps the arrow keys to directional changes. In non-blocking mode
-    (canvas.nodelay(True)), it returns immediately if no keys are available.
-
     Args:
         canvas: A curses window object used to poll keyboard input via `getch()`.
 

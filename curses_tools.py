@@ -4,11 +4,6 @@ import glob
 def draw_frame(canvas, start_row, start_column, frame, negative=False):
     """Draws or erases a multiline text fragment on the canvas.
 
-    Iterates through each character of a text drawing (like a spaceship) and
-    places it on the curses canvas at the specified coordinates. It automatically
-    handles clipping at terminal boundaries to prevent errors and skips spaces
-    to ensure transparent backgrounds.
-
     Args:
         canvas: A curses window object where the frame will be rendered.
         start_row (float or int): The vertical starting coordinate (Y) for the top
@@ -24,11 +19,11 @@ def draw_frame(canvas, start_row, start_column, frame, negative=False):
     """
     rows_number, columns_number = canvas.getmaxyx()
 
-    for row, line in enumerate(frame.splitlines(), round(start_row)):
+    for row, line in enumerate(frame.splitlines(), int(start_row)):
         if row < 0: continue
         if row >= rows_number: break
 
-        for column, symbol in enumerate(line, round(start_column)):
+        for column, symbol in enumerate(line, int(start_column)):
             if column < 0: continue
             if column >= columns_number: break
             if symbol == " ": continue
@@ -39,11 +34,7 @@ def draw_frame(canvas, start_row, start_column, frame, negative=False):
 
 
 def get_frame_size(frame):
-    """Calculates the dimensions of a multiline text fragment.
-
-    Splits the input string into individual lines to determine the total height
-    and analyzes each line to find the maximum width. This is used to define
-    the physical bounding box of ASCII art frames.
+    """Calculates the dimensions (height, width) of a multiline text fragment.
 
     Args:
         frame (str): A multiline string representing the ASCII art frame.
@@ -62,9 +53,6 @@ def get_frame_size(frame):
 def load_frames(path_pattern):
     """Loads and reads text frames from files matching a glob pattern.
 
-    Finds all file paths that match the specified pattern, and reads their
-    contents into a list of strings.
-
     Args:
         path_pattern (str): A glob pattern string specifying the location of the frame files.
 
@@ -72,5 +60,8 @@ def load_frames(path_pattern):
         list of str: A sorted list containing the textual content of each loaded frame.
     """
     frame_paths = glob.glob(path_pattern)
-    frames = [open(file, "r").read() for file in frame_paths]
+    frames = []
+    for path in frame_paths:
+        with open(path, "r", encoding="utf-8") as file:
+            frames.append(file.read())
     return frames

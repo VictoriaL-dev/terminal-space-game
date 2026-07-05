@@ -26,7 +26,8 @@ curses text interface.
 │   ├── obstacles/       # ASCII arts of obstacles
 │   └── ship/            # Spaceship engine flame animation frames   
 ├── curses_tools.py      # Core text-processing tools (drawing frames, boundaries)
-├── game_config.py       # Main configuration and game state management file
+├── game_config.py       # Game configuration file
+├── game_state.py        # Game state management file
 ├── controls.py          # Non-blocking user keyboard inputs configuration
 ├── animations.py        # Asynchronous game entities behaviors (stars, ship, fire)
 ├── obstacles.py         # Core physics engine managing hitbox rendering and 2D collision detection
