@@ -3,6 +3,8 @@ A fast-paced retro space arcade game built entirely inside the terminal. This pr
 and asynchronous programming in Python using native coroutines (generators driven by hand-crafted event-loops) inside a 
 curses text interface.
 
+![Terminal Space Game](https://github.com/user-attachments/assets/7f9209e4-a2fc-4d53-bf7b-d8903daa0019)
+
 
 ## 📌 Table of Contents
 - [⚙️ Tech Stack](#-tech-stack)
