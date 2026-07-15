@@ -1,10 +1,8 @@
 import time
 import curses
 
-import game_state
-import game_config
-from curses_tools import load_frames
-from curses_tools import get_frame_size
+import game_state, game_config
+from curses_tools import load_frames, get_frame_size
 from animations import get_star_coroutines, animate_spaceship, fill_orbit_with_garbage, advance_time
 
 

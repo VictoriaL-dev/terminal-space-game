@@ -3,13 +3,11 @@ import curses
 import asyncio
 import itertools
 
-import game_state
-import game_config
+import game_state, game_config
 from obstacles import Obstacle
 from physics import update_speed
 from controls import read_controls
-from curses_tools import draw_frame
-from curses_tools import get_frame_size
+from curses_tools import draw_frame, get_frame_size
 
 
 async def sleep(tics=1):
